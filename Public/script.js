@@ -1,4 +1,11 @@
-const API = "/generate"; // vercel rewrite → /api/generate
+// ========== DIRECT API SETUP ==========
+const API_URL = "https://drogon-guist-gen-ok3.vercel.app/generate";
+
+// Agar API ko prompt ke alawa kuch aur chahiye to yahan add karo
+const PAYLOAD_KEY = "prompt";   // "prompt" / "text" / "query" / "input" / "message"
+const PAYLOAD_EXTRA = {};        // {"model":"gpt", "lang":"hi"} jaisa kuch
+
+// ======================================
 
 const $prompt = document.getElementById("prompt");
 const $btn    = document.getElementById("btn");
@@ -12,44 +19,38 @@ function setStatus(msg, type = "") {
 }
 
 async function generate() {
-  const prompt = $prompt.value.trim();
-  if (!prompt) return setStatus("Pehle prompt likho.", "err");
+  const value = $prompt.value.trim();
+  if (!value) return setStatus("Pehle prompt likho.", "err");
 
   $btn.disabled = true;
   setStatus("⏳ Generating...");
   $out.textContent = "Wait karo...";
 
   try {
-    const res = await fetch(API, {
+    const body = { [PAYLOAD_KEY]: value, ...PAYLOAD_EXTRA };
+
+    const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify(body)
     });
 
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); } catch { data = raw; }
 
-    if (!res.ok || data.success === false) {
-      throw new Error(data.error || ("HTTP " + res.status));
-    }
+    if (!res.ok) throw new Error("HTTP " + res.status + " → " + raw.slice(0, 200));
 
-    // handle flexible response shapes
     const result =
-      data.data?.output ||
-      data.data?.text ||
-      data.data?.result ||
-      data.data?.message ||
-      data.output ||
-      data.text ||
-      data.result ||
-      data;
+      (data && (data.output || data.text || data.result || data.message || data.response)) || data;
 
     $out.textContent =
       typeof result === "string" ? result : JSON.stringify(result, null, 2);
 
-    setStatus("✅ Done" + (data.source ? " • " + data.source : ""), "ok");
+    setStatus("✅ Done", "ok");
   } catch (err) {
-    $out.textContent = "❌ Error: " + err.message;
-    setStatus("Fail ho gaya. Console check karo.", "err");
+    $out.textContent = "❌ " + err.message;
+    setStatus("Fail", "err");
     console.error(err);
   } finally {
     $btn.disabled = false;
